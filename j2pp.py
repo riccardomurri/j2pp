@@ -7,10 +7,16 @@ __docformat__ = 'reStructuredText'
 
 
 import argparse
+import logging
 import os
 import sys
 
 import jinja2
+
+
+logging.basicConfig(
+    format="%(module)s: %(levelname)s: %(message)s",
+    level=logging.WARNING)
 
 
 ## aux functions
@@ -219,5 +225,4 @@ else:
 
 # actually render template
 kv = parse_defines(args.define)
-print ("DEBUG: kv=%r" % kv)
 output.write(template.render(**kv))
