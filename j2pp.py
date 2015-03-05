@@ -106,6 +106,19 @@ def parse_defines(defs, default=1):
       >>> D['c']
       '1'
 
+    There's one exception, though: if the ``=value`` part is omitted,
+    a key is assigned the value given by the `default` argument
+    *without conversion* ::
+
+      >>> D = parse_defines(['a'])
+      >>> D['a']
+      1
+      >>> type(D['a'])
+      <type 'int'>
+      >>> D = parse_defines(['a'], default=True)
+      >>> D['a']
+      True
+
     Things get more interesting when the key part ``K`` contains a dot
     or a part enclosed in square brackets.  Then the key is split into
     components at each dot or ``[]`` expression, and nested
