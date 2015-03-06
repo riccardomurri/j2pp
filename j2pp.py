@@ -128,7 +128,9 @@ def _add(target, key, val):
         target[key] = val
 
 
-def parse_defines(defs, default=1, logger=logging):
+def parse_defines(defs, default=1,
+                  lengthen=True, shorten=False,
+                  logger=logging):
     """
     Parse a list of variable assignments into a Python dictionary.
 
@@ -168,10 +170,19 @@ def parse_defines(defs, default=1, logger=logging):
       >>> D['a']
       True
 
+    The same key may appear multiple times: values are then
+    concatenated into a list. (Similarly to what CGI modules do with
+    query strings.)  An example might clarify::
+
+      >>> D = parse_defines(['a=1', 'a=2', 'a=3'])
+      >>> D['a']
+      ['1', '2', '3']
+
     Things get more interesting when the key part ``K`` contains a dot
     or a part enclosed in square brackets.  Then the key is split into
-    components at each dot or ``[]`` expression, and nested
-    dictionaries are created to contain the keys and the final value::
+    components at each dot or ``[]`` expression (see
+    :func:`split_dot_or_dict_syntax`), and nested dictionaries are
+    created to contain the keys and the final value::
 
       >>> D = parse_defines(['sys.ipv4[lo]=127.0.0.1'])
       >>> D['sys']['ipv4']['lo']
@@ -190,13 +201,51 @@ def parse_defines(defs, default=1, logger=logging):
       >>> D['sys']['ipv4']['docker0']
       '192.168.0.1'
 
-    The same key may appear multiple times: values are then
-    concatenated into a list. (Similarly to what CGI modules do with
-    query strings.)  An example might clarify::
+    Now, it is possible that a composite key commands the creation of
+    nested dictionaries (i.e., extend the tree) where a scalar string
+    value is already present.  Optional third argument `lenghten`
+    controls the bahavior in this case:
 
-      >>> D = parse_defines(['a=1', 'a=2', 'a=3'])
-      >>> D['a']
-      ['1', '2', '3']
+    - if `lenghten` is ``True`` (default), then later assignments to
+      longer composite keys overwrite previosuly-assigned scalar
+      values::
+
+      >>> D = parse_defines(['sys.ipv4=127.0.0.1',
+      ...                    'sys.ipv4[docker0]=192.168.0.1' ])
+      >>> D['sys']['ipv4']
+      {'docker0': '192.168.0.1'}
+
+    - if `lengthen` is ``False``, the scalar string value is kept
+      and the later assignment is discarded::
+
+      >>> D = parse_defines(['sys.ipv4=127.0.0.1',
+      ...                    'sys.ipv4[docker0]=192.168.0.1' ],
+      ...                    lengthen=False)
+      >>> D['sys']['ipv4']
+      '127.0.0.1'
+
+    Similarly, optional fouth argument `shorten` controls what happens
+    when a composite key assigns a scalar value to an existing branch
+    in the dict tree:
+
+    - if `shorten` is ``False`` (default), then later assignments to a
+      shorter composite key are ignored, i.e., the existing tree branch
+      is kept::
+
+      >>> D = parse_defines(['sys.ipv4[docker0]=192.168.0.1',
+      ...                    'sys.ipv4=127.0.0.1'])
+      >>> D['sys']['ipv4']
+      {'docker0': '192.168.0.1'}
+
+    - if `shorten` is ``True``, then later assignments to a shorter
+      composite key prune the existing tree and overwrite the branch
+      with a single scalar value::
+
+      >>> D = parse_defines(['sys.ipv4[docker0]=192.168.0.1',
+      ...                    'sys.ipv4=127.0.0.1'],
+      ...                   shorten=True)
+      >>> D['sys']['ipv4']
+      '127.0.0.1'
     """
     result = {}
     for kv in defs:
@@ -213,19 +262,46 @@ def parse_defines(defs, default=1, logger=logging):
             # create nested dictionaries as needed
             head, tail = ks[:-1], ks[-1]
             target = result
-            # enumerate is only useful to generate an error msg in the
-            # assertion below
+            ok = True
+            # enumerate is only useful to generate a sensible msg in
+            # the warnings below
             for n, h in enumerate(head):
                 if h not in target:
                     target[h] = {}
                 if type(target[h]) != dict:
-                    logger.warning(
-                        "Trying to assign to '%s', but '%s' is already taken"
-                        " and has value %r -- overwriting it!\n",
-                        k, str.join('.', ks[:n+1]), target[h])
-                    target[h] = {}
+                    if lengthen:
+                        if logger:
+                            logger.warning(
+                                "Assignment to key '%s' overwrites existing key/value '%s=%r'",
+                                k, str.join('.', ks[:n+1]), target[h])
+                        target[h] = {}
+                    else:
+                        if logger:
+                            logger.warning(
+                                "Assignment to key '%s' ignored:"
+                                " key '%s' already exists with value %r",
+                                k, str.join('.', ks[:n+1]), target[h])
+                        ok = False # skip assignment below
+                        break
                 target = target[h]
-            _add(target, tail, v)
+            if ok:
+                if tail in target and type(target[tail]) == dict:
+                    if shorten:
+                        if logger:
+                            logger.warning(
+                                "Assignment of value %r to key '%s'"
+                                " prunes existing key tree.",
+                                v, k)
+                        target[tail] = v
+                    else:
+                        if logger:
+                            logger.warning(
+                                "Ignoring assignment of value %r to key '%s'"
+                                " as it would prune existing key tree.",
+                                v, k)
+                else:
+                    _add(target, tail, v)
+
     return result
 
 
