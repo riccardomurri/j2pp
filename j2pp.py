@@ -1,7 +1,15 @@
 #! /usr/bin/env python
 #
 """
-A preprocessor using Jinja2 syntax.
+A text file preprocessor using Jinja2 syntax: execute Jinja2
+directives in the INPUT file, and write the result to the OUTPUT file.
+
+Data to be substituted into the template is defined using the `-D
+NAME=VALUE` option (see below).  Dots and "subscript" ([]) syntax is
+correctly interpreted in the NAME part: i.e., given `-D NAME=VALUE`
+you can refer to NAME in the input Jinja2 template to get back VALUE.
+Lists are defined by repeated assignment to the same NAME: `-DNAME=1
+-DNAME=2 -DNAME=3` will define `NAME` as the Jinja2 list `[1,2,3]`.
 """
 ##
 # Copyright (C) 2015 S3IT, Zentrale Informatik, University of Zurich.
@@ -22,7 +30,7 @@ A preprocessor using Jinja2 syntax.
 ##
 __docformat__ = 'reStructuredText'
 __author__ = 'Riccardo Murri <riccardo.murri@uzh.ch>'
-__version__ = '1.0rc1'
+__version__ = '1.0'
 
 
 import argparse
@@ -326,7 +334,8 @@ def parse_defines(defs, default=1,
 ## main
 
 cmdline = argparse.ArgumentParser(
-    description=__doc__
+    description=__doc__,
+    formatter_class=argparse.RawDescriptionHelpFormatter,
 )
 cmdline.add_argument(
     "-V", "--version", action='store_true', default=False,
@@ -344,9 +353,9 @@ cmdline.add_argument(
     )
 )
 cmdline.add_argument(
-    "-D", "--define", action='append', metavar='VAR[=VALUE]',
+    "-D", "--define", action='append', metavar='NAME[=VALUE]',
     help=(
-        "Substitute VALUE for VAR in the input template."
+        "Substitute VALUE for NAME in the input template."
         " If VALUE is not given, assume `1`."
     )
 )
@@ -355,16 +364,16 @@ cmdline.add_argument(
     help="Search for referenced templates in the given DIR."
 )
 cmdline.add_argument(
-    "-i", "--input", type=str, metavar='FILE', default=None,
+    "-i", "--input", type=str, metavar='INPUT', default=None,
     help=(
-        "Read input template from FILE."
+        "Read input template from file INPUT."
         " If omitted, the input template is read from STDIN."
     )
 )
 cmdline.add_argument(
-    "-o", "--output", type=str, metavar='FILE', default=None,
+    "-o", "--output", type=str, metavar='OUTPUT', default=None,
     help=(
-        "Write output to FILE."
+        "Write output to file OUTPUT."
         " If omitted, output is written to STDOUT."
     )
 )
