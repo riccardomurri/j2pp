@@ -21,6 +21,8 @@ A preprocessor using Jinja2 syntax.
 # along with this program.  If not, see <http://www.gnu.org/licenses/#GPL>.
 ##
 __docformat__ = 'reStructuredText'
+__author__ = 'Riccardo Murri <riccardo.murri@uzh.ch>'
+__version__ = '1.0rc1'
 
 
 import argparse
@@ -324,7 +326,13 @@ def parse_defines(defs, default=1,
 
 ## main
 
-cmdline = argparse.ArgumentParser()
+cmdline = argparse.ArgumentParser(
+    description=__doc__
+)
+cmdline.add_argument(
+    "-V", "--version", action='store_true', default=False,
+    help="Show program name and version and exit."
+)
 cmdline.add_argument(
     "--selftest", action='store_true', default=False,
     help="Run self-test routine and exit."
@@ -355,6 +363,11 @@ cmdline.add_argument(
     )
 )
 args = cmdline.parse_args()
+
+# if asked, print version string and exit
+if args.version:
+    print ("j2pp version " + __version__)
+    sys.exit(0)
 
 # if asked, run self tests and exit
 if args.selftest:
