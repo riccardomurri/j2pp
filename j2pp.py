@@ -122,7 +122,7 @@ def _add(target, key, val):
     """
     if key in target:
         if type(target[key]) != list:
-            target[key] = list(target[key])
+            target[key] = [target[key]]
         target[key].append(val)
     else:
         target[key] = val
