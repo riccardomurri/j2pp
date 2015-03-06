@@ -53,27 +53,58 @@ def split_dot_or_dict_syntax(expr):
       >>> split_dot_or_dict_syntax('a[b].c')
       ['a', 'b', 'c']
 
+    Only outermost brackets are taken as a dict-style lookup
+    expression; any string appearing within the outermost pair of
+    brackets is taken as a single component (including dots and other
+    brackets!).
+
+    ::
+
+      >>> split_dot_or_dict_syntax('a[b[1]].c')
+      ['a', 'b[1]', 'c']
+      >>> split_dot_or_dict_syntax('a.b[c[1].d].e')
+      ['a', 'b', 'c[1].d', 'e']
+
+    Note that (as a consequence of the above), brackets must be
+    balanced, i.e., any open bracket must have a matching close one;
+    otherwise, an `AssertionError` is raised::
+
+      >>> split_dot_or_dict_syntax('a[b[1].c')
+      Traceback (most recent call last):
+        ...
+      AssertionError
+
     """
     result = []
     cur = ''
     nested = 0
     for ch in expr:
         if '.' == ch:
-            if cur:
-                result.append(cur)
-                cur = ''
+            if nested != 0:
+                cur += ch
+            else:
+                if cur:
+                    result.append(cur)
+                    cur = ''
         elif '[' == ch:
+            if nested != 0:
+                cur += ch
+            else:
+                if cur:
+                    result.append(cur)
+                    cur = ''
             nested += 1
-            if cur:
-                result.append(cur)
-                cur = ''
         elif ']' == ch:
             nested -= 1
-            if cur:
-                result.append(cur)
-                cur = ''
+            if nested != 0:
+                cur += ch
+            else:
+                if cur:
+                    result.append(cur)
+                    cur = ''
         else:
             cur += ch
+    assert nested == 0
     if cur:
         result.append(cur)
     return result
