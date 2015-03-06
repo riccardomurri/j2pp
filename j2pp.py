@@ -33,11 +33,6 @@ import sys
 import jinja2
 
 
-logging.basicConfig(
-    format="%(module)s: %(levelname)s: %(message)s",
-    level=logging.WARNING)
-
-
 ## aux functions
 
 def make_load_path(paths):
@@ -129,7 +124,7 @@ def split_dot_or_dict_syntax(expr):
     return result
 
 
-def _add(target, key, val):
+def _add(target, key, val, logger):
     """
     Add `val` to the list of values of `key` in `target`.
 
@@ -141,10 +136,13 @@ def _add(target, key, val):
     """
     if key in target:
         if type(target[key]) != list:
+            logger.debug("Converting leaf key '%s' to list type", key)
             target[key] = [target[key]]
+            logger.debug("Added value %r to leaf key '%s'.", key, val)
         target[key].append(val)
     else:
         target[key] = val
+        logger.debug("Leaf key '%s' set to value %r.", key, val)
 
 
 def parse_defines(defs, default=1,
@@ -274,9 +272,10 @@ def parse_defines(defs, default=1,
             k = kv
             v = default
         ks = split_dot_or_dict_syntax(k)
+        logging.debug("Setting key '%s' to value %r ...", str.join('.', ks), v)
         if len(ks) == 1:
             # shortcut
-            _add(result, k, v)
+            _add(result, k, v, logger)
         else:
             # create nested dictionaries as needed
             head, tail = ks[:-1], ks[-1]
@@ -319,7 +318,7 @@ def parse_defines(defs, default=1,
                                 " as it would prune existing key tree.",
                                 v, k)
                 else:
-                    _add(target, tail, v)
+                    _add(target, tail, v, logger)
 
     return result
 
@@ -336,6 +335,13 @@ cmdline.add_argument(
 cmdline.add_argument(
     "--selftest", action='store_true', default=False,
     help="Run self-test routine and exit."
+)
+cmdline.add_argument(
+    "-v", "--verbose", action='count', default=0,
+    help=(
+        "Log program actions at increasing detail."
+        " Repeat thrice or more for debug-level info."
+    )
 )
 cmdline.add_argument(
     "-D", "--define", action='append', metavar='VAR[=VALUE]',
@@ -377,27 +383,42 @@ if args.selftest:
         optionflags=doctest.NORMALIZE_WHITESPACE)
     sys.exit(1 if fail > 0 else 0)
 
+# make logging as verbose as requested
+logging.basicConfig(
+    format="%(module)s: %(levelname)s: %(message)s",
+    level=logging.ERROR - 10 * args.verbose)
+
 # create Jinja2 template engine
 if args.search:
     search_path = make_load_path(args.search)
 else:
     search_path = []
+logging.info("Jinja template search path is: %r", search_path)
 loader = jinja2.FileSystemLoader(search_path)
 env = jinja2.Environment(loader=loader)
 
 # select input template
 if args.input:
+    logging.info("Reading input template from file '%s' ...", args.input)
     with open(args.input, 'r') as source:
         template = env.from_string(source.read())
 else:
+    logging.info("Reading input template from STDIN ...")
     template = env.from_string(sys.stdin.read())
 
 # select output stream
 if args.output:
+    logging.info("Writing processed output to file '%s' ...", args.output)
     output = open(args.output, 'w')
 else:
+    logging.info("Writing processed output to STDOUT ...")
     output = sys.stdout
 
 # actually render template
+logging.info("Parsing defines into a tree ...")
 kv = parse_defines(args.define)
+
+logging.info("Rendering Jinja2 template ...")
 output.write(template.render(**kv))
+
+logging.info("All done.")
