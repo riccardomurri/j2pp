@@ -110,7 +110,25 @@ def split_dot_or_dict_syntax(expr):
     return result
 
 
-def parse_defines(defs, default=1):
+def _add(target, key, val):
+    """
+    Add `val` to the list of values of `key` in `target`.
+
+    However, if `key` does not exist in `target` (i.e., we are adding
+    the first value ever), then `key` is set to `value`.  In other
+    words, the change to a list happens when adding a second value.
+
+    This is a helper function for `parse_defines`.
+    """
+    if key in target:
+        if type(target[key]) != list:
+            target[key] = list(target[key])
+        target[key].append(val)
+    else:
+        target[key] = val
+
+
+def parse_defines(defs, default=1, logger=logging):
     """
     Parse a list of variable assignments into a Python dictionary.
 
@@ -172,6 +190,13 @@ def parse_defines(defs, default=1):
       >>> D['sys']['ipv4']['docker0']
       '192.168.0.1'
 
+    The same key may appear multiple times: values are then
+    concatenated into a list. (Similarly to what CGI modules do with
+    query strings.)  An example might clarify::
+
+      >>> D = parse_defines(['a=1', 'a=2', 'a=3'])
+      >>> D['a']
+      ['1', '2', '3']
     """
     result = {}
     for kv in defs:
@@ -183,7 +208,7 @@ def parse_defines(defs, default=1):
         ks = split_dot_or_dict_syntax(k)
         if len(ks) == 1:
             # shortcut
-            result[k] = v
+            _add(result, k, v)
         else:
             # create nested dictionaries as needed
             head, tail = ks[:-1], ks[-1]
@@ -193,14 +218,14 @@ def parse_defines(defs, default=1):
             for n, h in enumerate(head):
                 if h not in target:
                     target[h] = {}
+                if type(target[h]) != dict:
+                    logger.warning(
+                        "Trying to assign to '%s', but '%s' is already taken"
+                        " and has value %r -- overwriting it!\n",
+                        k, str.join('.', ks[:n+1]), target[h])
+                    target[h] = {}
                 target = target[h]
-                assert type(target) == dict, (
-                    "Trying to assign to '%s', but '%s' is already taken"
-                    " and has value %r"
-                    % (k, str.join('.', ks[:n+1]), target)
-                )
-
-            target[tail] = v
+            _add(target, tail, v)
     return result
 
 
