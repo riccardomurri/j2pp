@@ -1,0 +1,12 @@
+{# file TEST.in #}
+Domain name: {{domain}}
+
+L2 addresses (list):
+{% for hwaddr in sys.hwaddrs -%}
+* {{ hwaddr }}
+{% endfor %}
+
+IP network interfaces:
+{% for ifname, ipv4addr in sys.ipv4.iteritems() -%}
+* {{ ifname }}: {{ ipv4addr }}
+{% endfor %}
